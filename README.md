@@ -39,9 +39,9 @@ devtui --demo --inspect       # デモの設定確認のみ
 
 デモはweb/API/admin/auth/workerの5台で、`npm install`は不要です。`mise install`でこのPCに合うNode/pitchforkを用意します。起動にはlocalhostの4317〜4321番ポートを使用します。認証情報やDBデータは使いません。
 
-`1`のServersで選択して`s`を押すと起動します。`2`でmiseタスク、`3`でrepo別npmスクリプトを選び、Enterで実行します。ログと終了コードは`4`のRunsで確認できます。
+`1`のサーバー（Servers）で選択して`s`を押すと起動します。`2`でmiseタスク、`3`でrepo別npmスクリプトを選び、Enterで実行します。ログと終了コードは`4`の実行履歴（Runs）で確認できます。
 
-5台をまとめて起動する場合は、`2`のMise tasksで`servers:start`を選びEnterを押します。中身は`mise daemons start --all`です。miseが一括起動を提供しているので、タスク定義はTUIやCLIから呼ぶための名前を付ける役割です。通常のセットアップでは`mise run servers:start`でも呼べます。
+5台をまとめて起動する場合は、`2`のmiseタスク（Mise tasks）で`servers:start`を選びEnterを押します。中身は`mise daemons start --all`です。miseが一括起動を提供しているので、タスク定義はTUIやCLIから呼ぶための名前を付ける役割です。通常のセットアップでは`mise run servers:start`でも呼べます。
 
 Serversは`NAME / STATE / PORT / BRANCH`の順で表示します。右端の`BRANCH`列は各repoの現在のGitブランチを右寄せで表示します。2秒ごとの状態取得時に読み直し、ブランチ名でも絞り込めます。Git管理外のフォルダや対応repoがないサーバーは`-`を表示します。デモのように同じGitリポジトリ内のフォルダを登録した場合は、そのリポジトリのブランチを表示します。ログは選択サーバーに自動追従し、`l`の操作は不要です。
 
@@ -94,6 +94,25 @@ mise install
 | `e` | 終了時のKEEP / STOP切り替え |
 | `?` | ヘルプ |
 | `q` / Ctrl-C | 終了 |
+| `L`（Shift + `l`） | 日本語／英語の表示を切り替え |
+
+## 表示言語
+
+`L`（Shift + `l`）で日本語／英語を切り替えます。全画面ログでも使用でき、切り替えはその起動中に有効です。検索・絞り込みの入力中は`L`も文字として扱います。
+
+```sh
+devtui /path/to/workspace --lang ja
+devtui --demo --lang en
+```
+
+初期言語を保存する場合は、共通の`mise.toml`へ設定します。
+
+```toml
+[_.devtui]
+language = "ja"  # ja / en
+```
+
+優先順位は`--lang`、`mise.toml`の`language`、未指定時の英語です。同梱デモは日本語を初期値にしています。メニュー・状態・操作ガイド・アプリの通知を翻訳し、repo名・ブランチ名・タスク定義の説明・コマンド・ログ本文は原文を表示します。CLIのヘルプと外部コマンド由来のエラーは言語切り替えの対象外です。
 
 ## 全画面ログ
 
@@ -110,6 +129,7 @@ ServersまたはRunsで対象を選び、Enterか`f`でログを全画面表示�
 | `/` → 文字入力 → Enter | ログ内を検索（大文字小文字を区別しない文字列検索、日本語可） |
 | `n` / `N` | 次 / 前の一致行へ移動。末尾・先頭で折り返す |
 | Space | 自動追従を一時停止 / 再開 |
+| `L` | 日本語／英語を切り替え |
 | `c` | 表示中の行のログ本文をクリップボードへコピー（横に隠れた部分も含む） |
 | Option + `c` / `C`（Shift + `c`） | 上下に隠れた行も含め、読み込み済みの全ログをコピー |
 | Esc / `q` / `f` | 元の一覧へ戻る。検索入力中のEscは入力と検索条件を解除 |
@@ -147,6 +167,7 @@ pitchfork = "2.33.1"
 # miseが無視する公式の自由データ領域を利用
 [_.devtui]
 exit_policy = "keep"
+language = "ja"
 
 [_.devtui.repos.frontend]
 path = "../frontend"  # このmise.tomlからの相対パス、絶対パス、~/も可

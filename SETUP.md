@@ -27,7 +27,9 @@ devtui --demo --inspect
 devtui --demo --doctor
 ```
 
-デモの5台は起動時点では自動起動しません。`2 Mise tasks`で`servers:start`を選ぶと全台起動します。ポート4317〜4321を使用します。終了時のKEEP/STOPは`e`で切り替えます。
+デモの5台は起動時点では自動起動しません。`2 miseタスク`（英語表示ではMise tasks）で`servers:start`を選ぶと全台起動します。ポート4317〜4321を使用します。終了時のKEEP/STOPは`e`で切り替えます。
+
+デモは日本語表示で起動します。`L`（Shift + `l`）で日英を切り替えられ、`devtui --demo --lang en`で英語起動も可能です。自分のワークスペースでは`[_.devtui]`に`language = "ja"`を追加すると日本語を初期値にできます。`--lang ja` / `--lang en`は設定ファイルより優先され、切り替え操作自体はファイルを書き換えません。
 
 ## 自分の開発環境を管理する
 

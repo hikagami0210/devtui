@@ -22,6 +22,7 @@ def main(argv=None):
     parser.add_argument("--demo", action="store_true", help="open this checkout's isolated five-server demo")
     parser.add_argument("--mise", default="mise", help="mise executable name or path")
     parser.add_argument("--exit-policy", choices=("keep", "stop"))
+    parser.add_argument("--lang", choices=("ja", "en"), help="initial UI language (overrides mise.toml)")
     parser.add_argument("--inspect", action="store_true", help="read local config/package.json as JSON; no commands executed")
     parser.add_argument("--doctor", action="store_true", help="check mise and read daemon/task lists")
     args = parser.parse_args(argv)
@@ -38,6 +39,8 @@ def main(argv=None):
             forwarded.append("--doctor")
         if args.exit_policy:
             forwarded.extend(("--exit-policy", args.exit_policy))
+        if args.lang:
+            forwarded.extend(("--lang", args.lang))
         try:
             os.execv(str(demo), forwarded)
         except OSError as exc:
@@ -53,6 +56,7 @@ def main(argv=None):
         if args.inspect:
             found, errors = scripts(config)
             print(json.dumps({"root": str(config.root), "exit_policy": args.exit_policy or config.exit_policy,
+                "language": args.lang or config.language,
                 "daemons": config.daemons,
                 "scripts": [{"repo": s.repo.name, "name": s.name, "manager": s.manager, "command": s.command} for s in found],
                 "errors": errors}, ensure_ascii=False, indent=2))
@@ -65,7 +69,7 @@ def main(argv=None):
         if not sys.stdin.isatty() or not sys.stdout.isatty():
             raise UserError("TUIは端末から起動してください。確認のみは --inspect / --doctor を使えます。")
         from .tui import UI
-        UI(backend, args.exit_policy).run()
+        UI(backend, args.exit_policy, language=args.lang).run()
         return 0
     except (UserError, ValueError) as exc:
         print(f"devtui: {exc}", file=sys.stderr)

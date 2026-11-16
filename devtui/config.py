@@ -33,6 +33,7 @@ class Config:
     repos: tuple[Repo, ...]
     daemons: tuple[str, ...]
     exit_policy: str = "keep"
+    language: str = "en"
 
     @property
     def root(self):
@@ -51,6 +52,9 @@ def load(path: Path) -> Config:
         policy = options.get("exit_policy", "keep")
         if policy not in ("keep", "stop"):
             raise ValueError("exit_policy must be keep or stop")
+        language = options.get("language", "en")
+        if language not in ("ja", "en"):
+            raise ValueError("language must be ja or en")
         repos = []
         for name, entry in options.get("repos", {}).items():
             if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
@@ -74,7 +78,7 @@ def load(path: Path) -> Config:
                 if name not in daemons or name in assigned:
                     raise ValueError(f"repo {repo.name}: unknown or duplicate daemon mapping: {name}")
                 assigned.add(name)
-        return Config(path, tuple(repos), tuple(daemons), policy)
+        return Config(path, tuple(repos), tuple(daemons), policy, language)
     except (OSError, ValueError, TypeError, AttributeError) as exc:
         raise UserError(f"設定を読めません: {path}: {exc}") from exc
 

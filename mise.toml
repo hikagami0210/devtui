@@ -9,6 +9,7 @@ pitchfork = "2.33.1"
 
 [_.devtui]
 exit_policy = "keep"
+language = "ja"
 
 [_.devtui.repos.web]
 path = "examples/web"

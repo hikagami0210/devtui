@@ -5,13 +5,15 @@ import re
 from .text import clean, fit, slice_cells, text_width
 from .config import HISTORY_LIMIT
 from .mouse import KEY_ALT_C
+from .i18n import translate
 
 
 class LogView:
     """A frozen snapshot while browsing, or a live tail while following."""
 
-    def __init__(self, title, source, lines=(), loaded=True):
+    def __init__(self, title, source, lines=(), loaded=True, language="en"):
         self.title = title
+        self.language = language
         self.source = source
         self.lines = [clean(line) for line in lines]
         self.loaded = loaded
@@ -26,6 +28,9 @@ class LogView:
         self.match_index = -1
         self.message = ""
         self.set_viewport(self.height, self.width)
+
+    def t(self, template, **values):
+        return translate(self.language, template, **values)
 
     @property
     def max_top(self):
@@ -70,7 +75,7 @@ class LogView:
     def jump(self, direction=1):
         self.follow = False
         if not self.matches:
-            self.message = "No matches" if self.query else "Press / to search"
+            self.message = self.t("No matches" if self.query else "Press / to search")
             return
         if self.match_index >= 0:
             index = self.match_index + direction
@@ -109,7 +114,7 @@ class LogView:
         # Option+C sends either ESC c (Meta) or ç on common macOS layouts.
         if key in (ord("c"), ord("C"), ord("ç"), KEY_ALT_C):
             if not self.loaded:
-                self.message = "Logs are still loading"
+                self.message = self.t("Logs are still loading")
                 return None
             return "copy" if key == ord("c") else "copy_all"
         if not self.loaded:
@@ -153,7 +158,7 @@ class LogView:
                 except curses.error:
                     pass
         if height < 10 or width < 40:
-            put(0, 0, "Resize to 40 x 10. Esc: return")
+            put(0, 0, self.t("Resize to 40 x 10. Esc: return"))
             win.refresh()
             return
         digits = max(3, len(str(len(self.lines))))
@@ -165,13 +170,13 @@ class LogView:
             put(y, 0, "│", border)
             put(y, width - 1, "│", border)
         put(height - 3, 0, "└" + "─" * (width - 2) + "┘", border)
-        badge = "LOADING" if not self.loaded else "FOLLOW" if self.follow else "PAUSED"
-        put(0, 2, f" {self.title} ", color(1) | curses.A_BOLD, width - len(badge) - 8)
-        put(0, width - len(badge) - 4, f" {badge} ", color(3 if self.follow else 2) | curses.A_BOLD)
+        badge = self.t("LOADING" if not self.loaded else "FOLLOW" if self.follow else "PAUSED")
+        put(0, 2, f" {self.title} ", color(1) | curses.A_BOLD, width - text_width(badge) - 8)
+        put(0, width - text_width(badge) - 4, f" {badge} ", color(3 if self.follow else 2) | curses.A_BOLD)
         end = min(len(self.lines), self.top + self.height)
-        status = f"Lines {self.top + 1 if self.lines else 0}-{end}/{len(self.lines)}  |  Column {self.column + 1}"
+        status = self.t("Lines {start}-{end}/{total}  |  Column {column}", start=self.top + 1 if self.lines else 0, end=end, total=len(self.lines), column=self.column + 1)
         if not self.loaded:
-            status += f"  |  Loading up to {HISTORY_LIMIT} history lines..."
+            status += self.t("  |  Loading up to {limit} history lines...", limit=HISTORY_LIMIT)
         put(1, 2, status, curses.A_DIM, width - 4)
         pattern = self.pattern()
         active = self.matches[self.match_index] if self.match_index >= 0 else None
@@ -188,19 +193,19 @@ class LogView:
                         put(y, data_x + left - self.column, slice_cells(line, left, right - left),
                             color(8 if line_number == active else 7) | curses.A_BOLD, right - left)
         if not self.lines:
-            put(2, data_x, "No stored logs. New output will appear here.", curses.A_DIM, self.width)
+            put(2, data_x, self.t("No stored logs. New output will appear here."), curses.A_DIM, self.width)
         if self.editing or self.query:
-            counter = f"{self.match_index + 1}/{len(self.matches)} matching lines"
+            counter = self.t("{current}/{total} matching lines", current=self.match_index + 1, total=len(self.matches))
             prompt = "/ " + self.query + ("█" if self.editing else "")
-            prompt_width = max(1, width - len(counter) - 5)
+            prompt_width = max(1, width - text_width(counter) - 5)
             if text_width(prompt) > prompt_width:
                 prompt = slice_cells(prompt, text_width(prompt) - prompt_width, prompt_width)
             put(height - 2, 1, prompt, color(2), prompt_width)
-            put(height - 2, width - len(counter) - 2, counter, color(5))
+            put(height - 2, width - text_width(counter) - 2, counter, color(5))
         else:
-            put(height - 2, 1, self.message or "Trackpad/wheel scrolls. G or Space resumes live output.", color(2), width - 2)
+            put(height - 2, 1, self.message or self.t("Trackpad/wheel scrolls. G or Space resumes live output."), color(2), width - 2)
         if self.message and self.query and not self.editing:
-            put(1, max(2, width - len(self.message) - 3), self.message, color(2))
+            put(1, max(2, width - text_width(self.message) - 3), self.message, color(2), width - 5)
         keys = "↑↓/jk scroll  PgUp/Dn page  ←→ pan  / search  n/N next/prev  c copy  Option+c/C all  G tail  Esc back"
         if width < 90:
             keys = "jk scroll  / search  n/N next/prev  c copy  C all  G tail  Esc back"
@@ -208,5 +213,8 @@ class LogView:
             keys = "jk scroll  / find  c copy  C all  Esc back"
         if self.editing:
             keys = "Enter find  Esc clear search"
+        keys = self.t(keys)
+        if not self.editing and self.language == "en" and width >= 110:
+            keys = keys.replace("Esc back", "L lang  Esc back")
         put(height - 1, 1, keys, color(2), width - 2)
         win.refresh()
