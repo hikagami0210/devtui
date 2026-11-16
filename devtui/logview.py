@@ -53,6 +53,19 @@ class LogView:
         self.follow = False
         self.top = max(0, min(self.max_top, self.top + amount))
 
+    def pan(self, amount):
+        self.follow = False
+        longest = max((text_width(line) for line in self.lines[self.top:self.top + self.height]), default=0)
+        self.column = max(0, min(max(0, longest - self.width), self.column + amount))
+
+    def wheel(self, dx, dy):
+        if not self.loaded:
+            return
+        if dy:
+            self.scroll(dy)
+        if dx:
+            self.pan(dx)
+
     def jump(self, direction=1):
         self.follow = False
         if not self.matches:
@@ -113,12 +126,9 @@ class LogView:
                 self.top = self.max_top
                 return "refresh"
         elif key in (curses.KEY_LEFT, ord("h")):
-            self.follow = False
-            self.column = max(0, self.column - 8)
+            self.pan(-8)
         elif key in (curses.KEY_RIGHT, ord("l")):
-            self.follow = False
-            longest = max((text_width(line) for line in self.lines[self.top:self.top + self.height]), default=0)
-            self.column = min(max(0, longest - self.width), self.column + 8)
+            self.pan(8)
         elif key == ord("/"):
             self.follow, self.editing, self.query, self.message = False, True, "", ""
             self.find_matches()
@@ -181,7 +191,7 @@ class LogView:
             put(height - 2, 1, prompt, color(2), prompt_width)
             put(height - 2, width - len(counter) - 2, counter, color(5))
         else:
-            put(height - 2, 1, self.message or "Scroll/search pauses updates. G or Space resumes live output.", color(2), width - 2)
+            put(height - 2, 1, self.message or "Trackpad/wheel scrolls. G or Space resumes live output.", color(2), width - 2)
         if self.message and self.query and not self.editing:
             put(1, max(2, width - len(self.message) - 3), self.message, color(2))
         keys = "↑↓/jk scroll  PgUp/Dn page  ←→ pan  / search  n/N next/prev  G tail  Esc back"

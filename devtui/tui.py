@@ -6,6 +6,7 @@ from .config import HISTORY_LIMIT, UserError, scripts
 from .process import Jobs
 from .text import fit, text_width
 from .logview import LogView
+from .mouse import MouseInput
 
 
 class UI:
@@ -409,20 +410,30 @@ class UI:
         win.timeout(100)
         if hasattr(curses, "set_escdelay"):
             curses.set_escdelay(100)
-        while True:
-            self.poll()
-            self.draw(win)
-            try:
-                char = win.get_wch()
-            except curses.error:
-                char = -1
-            key = (ord(char) if ord(char) < 256 else -2) if isinstance(char, str) else char
-            if key in (ord("q"), 3) and not self.editing and not self.log_view:
-                return
-            try:
-                self.action(key, char if isinstance(char, str) else None)
-            except UserError as exc:
-                self.message = str(exc)
+        mouse = MouseInput()
+        try:
+            while True:
+                self.poll()
+                self.draw(win)
+                mouse.enable(self.log_view is not None)
+                try:
+                    char = win.get_wch()
+                except curses.error:
+                    char = -1
+                event = mouse.read(win, char)
+                if event is not None:
+                    if self.log_view:
+                        self.log_view.wheel(*event)
+                    continue
+                key = (ord(char) if ord(char) < 256 else -2) if isinstance(char, str) else char
+                if key in (ord("q"), 3) and not self.editing and not self.log_view:
+                    return
+                try:
+                    self.action(key, char if isinstance(char, str) else None)
+                except UserError as exc:
+                    self.message = str(exc)
+        finally:
+            mouse.enable(False)
 
     def run(self):
         try:
