@@ -202,22 +202,7 @@ Phase 2では、IT専用PostgreSQLコンテナを作成し、`trap`による終�
 
 実際のmise/pitchforkと端末キー操作を使った確認結果は[VERIFICATION.md](VERIFICATION.md)に記録しています。
 
-### スクロール入力の切り分け
-
-端末から次の2つを実行し、それぞれ上下に数回スクロールして`q`で終了します。プロジェクト設定・mise・サーバー・DBにはアクセスしません。
-
-```sh
-devtui --mouse-test
-devtui --mouse-test curses
-```
-
-最初は端末が送った生のマウス報告を数え、次は本体と同じcurses入力処理でサンプルログを動かします。後者はログの中間から始まるため、両方向へ移動できます。終了後の`UP`/`DOWN`と`Last reports`を比較してください。入力した通常の文字列は表示・保存しません。
-
-- 生入力で片方向が0: 端末設定やtmux等の経路を確認。`ARROW_UP`/`ARROW_DOWN`が増える場合は、ホイールが矢印キーに変換されています。
-- 生入力では両方向が増え、cursesでは片方向だけ: cursesやdevtuiの入力処理を確認。
-- 両方で上下が増え、`top`も上下に変化する: 実ログの先頭・末尾など、表示位置やログ量を確認。
-
-iTerm2では[Profiles → Terminal](https://iterm2.com/documentation-preferences-profiles-terminal.html)の`Enable mouse reporting`と`Report mouse wheel events`を確認できます。Optionキーを押している間はマウス報告が一時的に無効になるため、診断中は離してください。
+### スクロールの互換性
 
 macOSの古いncursesとSGRマウスを指定する端末定義の組み合わせでは、curses内で下方向等の入力が失われる場合があります。devtuiではSGRをcursesのマウス変換より先に読み取り、`BUTTON5_PRESSED`のない環境でも上下左右を処理します。ナビゲーションキーは端末定義と標準の矢印・Home/End・PageUp/PageDownの配列を使って読み取ります。
 

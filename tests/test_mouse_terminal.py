@@ -1,5 +1,7 @@
 """Exercise real curses with a modern SGR terminfo entry, including old macOS."""
+import curses
 import fcntl
+import json
 import os
 from pathlib import Path
 import pty
@@ -12,6 +14,41 @@ import tempfile
 import termios
 import time
 import unittest
+
+
+def mouse_probe():
+    """Test subprocess entry point; uses production input and log rendering."""
+    from devtui.logview import LogView
+    from devtui.mouse import MouseInput
+    events = []
+
+    def loop(win):
+        view = LogView("Regression test", ("test", None), [f"Log {i}" for i in range(600)])
+        view.follow, view.top = False, 280
+        win.timeout(100)
+        mouse = MouseInput()
+        try:
+            mouse.enable(True)
+            while True:
+                view.draw(win, lambda _: 0)
+                try:
+                    char, event = mouse.get_input(win)
+                except curses.error:
+                    continue
+                if event is not None:
+                    before = view.top
+                    view.wheel(*event)
+                    events.append(["wheel", *event, before, view.top])
+                elif char == "q":
+                    break
+                elif char in (curses.KEY_UP, curses.KEY_DOWN):
+                    view.key(char)
+                    events.append(["key", char, view.top])
+        finally:
+            mouse.enable(False)
+
+    curses.wrapper(loop)
+    print("MOUSE_RESULT=" + json.dumps(events))
 
 
 @unittest.skipUnless(shutil.which("tic"), "requires the terminfo compiler")
@@ -31,7 +68,8 @@ class TerminalMouseTests(unittest.TestCase):
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 120, 0, 0))
             original = termios.tcgetattr(slave)
             environment = dict(os.environ, TERM="devtui-sgr", TERMINFO=str(root))
-            process = subprocess.Popen([sys.executable, "-m", "devtui", "--mouse-test", "curses"],
+            probe = "import runpy; runpy.run_path('tests/test_mouse_terminal.py')['mouse_probe']()"
+            process = subprocess.Popen([sys.executable, "-c", probe],
                 cwd=Path(__file__).resolve().parents[1], env=environment,
                 stdin=slave, stdout=slave, stderr=slave, start_new_session=True)
             output = bytearray()
@@ -58,10 +96,12 @@ class TerminalMouseTests(unittest.TestCase):
                     pump(.05)
                 self.assertEqual(process.poll(), 0, output.decode(errors="replace"))
                 pump(.05)
-                summary = output.decode(errors="replace").split("devtui mouse-test mode=curses")[-1]
-                self.assertIn("UP=1 DOWN=1 LEFT=1 RIGHT=1 ARROW_UP=1 ARROW_DOWN=1 OTHER=0", summary)
-                self.assertIn("UP top=281->278", summary)
-                self.assertIn("DOWN top=278->281", summary)
+                result = output.decode(errors="replace").split("MOUSE_RESULT=")[-1].strip()
+                self.assertEqual(json.loads(result), [
+                    ["wheel", 0, -3, 280, 277], ["wheel", 0, 3, 277, 280],
+                    ["wheel", -8, 0, 280, 280], ["wheel", 8, 0, 280, 280],
+                    ["key", curses.KEY_UP, 279], ["key", curses.KEY_DOWN, 280],
+                ])
                 self.assertIn(b"\x1b[?1006l", output)
                 restored = termios.tcgetattr(slave)
                 # macOS may set the kernel's pending-retype flag after cbreak.

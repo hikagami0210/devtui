@@ -20,22 +20,11 @@ def main(argv=None):
     parser.add_argument("workspace", nargs="?", type=Path, help="workspace directory (default: current directory), or mise.toml")
     parser.add_argument("--config", type=Path, help="explicit mise.toml path")
     parser.add_argument("--demo", action="store_true", help="open this checkout's isolated five-server demo")
-    parser.add_argument("--mouse-test", nargs="?", const="raw", choices=("raw", "curses"),
-                        help="diagnose terminal wheel input without accessing projects or servers")
     parser.add_argument("--mise", default="mise", help="mise executable name or path")
     parser.add_argument("--exit-policy", choices=("keep", "stop"))
     parser.add_argument("--inspect", action="store_true", help="read local config/package.json as JSON; no commands executed")
     parser.add_argument("--doctor", action="store_true", help="check mise and read daemon/task lists")
     args = parser.parse_args(argv)
-    if args.mouse_test:
-        if args.workspace is not None or args.config is not None or args.demo or args.inspect or args.doctor:
-            parser.error("--mouse-test はディレクトリ・--demo・--config・--inspect・--doctor と併用できません")
-        from .mousecheck import run_mouse_test
-        try:
-            return run_mouse_test(args.mouse_test)
-        except UserError as exc:
-            print(f"devtui: {exc}", file=sys.stderr)
-            return 1
     if args.workspace is not None and args.config is not None:
         parser.error("ディレクトリと --config はどちらか一方を指定してください")
     if args.demo:
