@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from devtui.logview import LogView
-from devtui.mouse import MouseInput, sgr_scroll
+from devtui.mouse import KEY_ALT_C, MouseInput, sgr_scroll
 
 
 class InputWindow:
@@ -30,6 +30,13 @@ class InputWindow:
 
 
 class MouseTests(unittest.TestCase):
+    def test_option_c_is_one_key_and_does_not_close_the_view(self):
+        window = InputWindow("\x1bcç")
+        with patch("curses.tigetstr", return_value=None):
+            mouse = MouseInput()
+            self.assertEqual(mouse.get_input(window), (KEY_ALT_C, None))
+            self.assertEqual(mouse.get_input(window), ("ç", None))
+
     def test_raw_input_keeps_navigation_and_unicode(self):
         window = InputWindow("\x1bOA\x1b[B\x1b[5~\x1b[6~\x1b[H\x1b[F日")
         with patch("curses.tigetstr", return_value=None):

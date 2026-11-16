@@ -4,6 +4,7 @@ import re
 
 from .text import clean, fit, slice_cells, text_width
 from .config import HISTORY_LIMIT
+from .mouse import KEY_ALT_C
 
 
 class LogView:
@@ -105,6 +106,12 @@ class LogView:
             return None
         if key in (27, ord("q"), ord("f")):
             return "close"
+        # Option+C sends either ESC c (Meta) or ç on common macOS layouts.
+        if key in (ord("c"), ord("C"), ord("ç"), KEY_ALT_C):
+            if not self.loaded:
+                self.message = "Logs are still loading"
+                return None
+            return "copy" if key == ord("c") else "copy_all"
         if not self.loaded:
             return None
         if key in (curses.KEY_UP, ord("k")):
@@ -194,11 +201,11 @@ class LogView:
             put(height - 2, 1, self.message or "Trackpad/wheel scrolls. G or Space resumes live output.", color(2), width - 2)
         if self.message and self.query and not self.editing:
             put(1, max(2, width - len(self.message) - 3), self.message, color(2))
-        keys = "↑↓/jk scroll  PgUp/Dn page  ←→ pan  / search  n/N next/prev  G tail  Esc back"
+        keys = "↑↓/jk scroll  PgUp/Dn page  ←→ pan  / search  n/N next/prev  c copy  Option+c/C all  G tail  Esc back"
         if width < 90:
-            keys = "jk scroll  PgUp/Dn page  / search  n/N next/prev  G tail  Esc back"
+            keys = "jk scroll  / search  n/N next/prev  c copy  C all  G tail  Esc back"
         if width < 68:
-            keys = "jk scroll  / find  G tail  Esc back"
+            keys = "jk scroll  / find  c copy  C all  Esc back"
         if self.editing:
             keys = "Enter find  Esc clear search"
         put(height - 1, 1, keys, color(2), width - 2)

@@ -3,6 +3,9 @@ import re
 import sys
 
 
+KEY_ALT_C = -3
+
+
 def sgr_scroll(sequence):
     """Decode SGR mouse reports. None means this is ordinary keyboard input."""
     match = re.fullmatch(r"\[<(\d+);(\d+);(\d+)([Mm])", sequence)
@@ -73,6 +76,8 @@ class MouseInput:
                 if not isinstance(value, str):
                     break
                 sequence = "".join(pending)
+                if sequence == "c":
+                    return KEY_ALT_C, None
                 if sequence == "[<":
                     for value in reversed(pending):
                         self.put_back(value)

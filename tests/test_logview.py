@@ -4,7 +4,8 @@ from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
-from devtui.config import Config
+from devtui.config import Config, UserError
+from devtui.mouse import KEY_ALT_C
 from devtui.logview import HISTORY_LIMIT, LogView
 from devtui.text import slice_cells, text_width
 from devtui.tui import UI
@@ -99,6 +100,55 @@ class FullScreenTests(unittest.TestCase):
         ui.logs = {"api": ["recent"]}
         ui.next_poll = float("inf")
         return ui
+
+    def test_copy_visible_rows_includes_full_width_without_screen_chrome(self):
+        ui = self.ui()
+        ui.log_view = LogView("Logs / api", ("server", "api"), ["above", "日本語" + "x" * 120, "last visible", "below"])
+        ui.log_view.set_viewport(2, 20)
+        ui.log_view.follow, ui.log_view.top, ui.log_view.column = False, 1, 60
+        with patch("devtui.tui.copy_text") as copy:
+            ui.action(ord("c"))
+            copy.assert_called_once_with("日本語" + "x" * 120 + "\nlast visible\n")
+        self.assertEqual(ui.log_view.message, "Copied 2 lines (visible rows)")
+        self.assertEqual((ui.log_view.top, ui.log_view.column, ui.log_view.follow), (1, 60, False))
+
+    def test_all_copy_shortcuts_include_hidden_rows_and_keep_search_conditions(self):
+        ui = self.ui()
+        ui.log_view = LogView("Output", ("job", None), ["above", "middle", "below"])
+        ui.log_view.set_viewport(1, 20)
+        ui.log_view.follow, ui.log_view.top = False, 1
+        ui.log_view.query = "middle"
+        for key in (KEY_ALT_C, ord("ç"), ord("C")):
+            with self.subTest(key=key), patch("devtui.tui.copy_text") as copy:
+                ui.action(key)
+                copy.assert_called_once_with("above\nmiddle\nbelow\n")
+            self.assertEqual(ui.log_view.message, "Copied 3 lines (all loaded)")
+        self.assertEqual(ui.log_view.query, "middle")
+
+    def test_copy_failure_is_shown_inside_view_and_does_not_clear_logs(self):
+        ui = self.ui()
+        ui.log_view = LogView("Logs", ("server", "api"), ["keep"])
+        with patch("devtui.tui.copy_text", side_effect=UserError("clipboard unavailable")):
+            ui.action(ord("c"))
+        self.assertEqual(ui.log_view.message, "Copy failed: clipboard unavailable")
+        self.assertEqual(ui.log_view.lines, ["keep"])
+
+    def test_copy_does_not_overwrite_clipboard_for_loading_empty_or_search_input(self):
+        ui = self.ui()
+        with patch("devtui.tui.copy_text") as copy:
+            ui.log_view = LogView("Logs", ("server", "api"), ["partial"], loaded=False)
+            ui.action(ord("c"))
+            self.assertEqual(ui.log_view.message, "Logs are still loading")
+            ui.log_view = LogView("Logs", ("server", "api"), [])
+            ui.action(ord("C"))
+            self.assertEqual(ui.log_view.message, "No logs to copy")
+            ui.log_view = LogView("Logs", ("server", "api"), ["log"])
+            ui.action(ord("/"))
+            ui.action(ord("c"))
+            ui.action(ord("ç"), "ç")
+            ui.action(KEY_ALT_C)
+            self.assertEqual(ui.log_view.query, "cç")
+            copy.assert_not_called()
 
     def test_full_screen_loads_older_history_and_does_not_move_server_selection(self):
         ui = self.ui()

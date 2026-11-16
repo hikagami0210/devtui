@@ -7,6 +7,7 @@ from .process import Jobs
 from .text import fit, text_width
 from .logview import LogView
 from .mouse import MouseInput
+from .clipboard import copy_text
 
 
 class UI:
@@ -138,6 +139,18 @@ class UI:
                 self.next_poll = 0
             elif result == "refresh":
                 self.next_poll = 0
+            elif result in ("copy", "copy_all"):
+                view = self.log_view
+                lines = view.lines if result == "copy_all" else view.lines[view.top:view.top + view.height]
+                if not lines:
+                    view.message = "No logs to copy"
+                else:
+                    try:
+                        copy_text("\n".join(lines) + "\n")
+                        scope = "all loaded" if result == "copy_all" else "visible rows"
+                        view.message = f"Copied {len(lines)} lines ({scope})"
+                    except UserError as exc:
+                        view.message = f"Copy failed: {exc}"
             return
         if self.editing and key != 27:
             if key in (10, 13):

@@ -41,9 +41,16 @@ def mouse_probe():
                     events.append(["wheel", *event, before, view.top])
                 elif char == "q":
                     break
-                elif char in (curses.KEY_UP, curses.KEY_DOWN):
-                    view.key(char)
-                    events.append(["key", char, view.top])
+                else:
+                    key = ord(char) if isinstance(char, str) else char
+                    result = view.key(key, char if isinstance(char, str) else None)
+                    if result in ("copy", "copy_all"):
+                        lines = view.lines if result == "copy_all" else view.lines[view.top:view.top + view.height]
+                        events.append([result, len(lines)])
+                    elif result == "close":
+                        break
+                    elif char in (curses.KEY_UP, curses.KEY_DOWN):
+                        events.append(["key", char, view.top])
         finally:
             mouse.enable(False)
 
@@ -87,7 +94,7 @@ class TerminalMouseTests(unittest.TestCase):
                 self.assertIn(b"\x1b[?1006h", output)
                 for packet in (b"\x1b[<64;30;10M", b"\x1b[<65;30;10M",
                                b"\x1b[<66;30;10M", b"\x1b[<67;30;10M",
-                               b"\x1bOA", b"\x1bOB"):
+                               b"\x1bOA", b"\x1bOB", b"c", b"\x1bc", "ç".encode(), b"C"):
                     os.write(master, packet)
                     pump(.08)
                 os.write(master, b"q")
@@ -101,6 +108,7 @@ class TerminalMouseTests(unittest.TestCase):
                     ["wheel", 0, -3, 280, 277], ["wheel", 0, 3, 277, 280],
                     ["wheel", -8, 0, 280, 280], ["wheel", 8, 0, 280, 280],
                     ["key", curses.KEY_UP, 279], ["key", curses.KEY_DOWN, 280],
+                    ["copy", 25], ["copy_all", 600], ["copy_all", 600], ["copy_all", 600],
                 ])
                 self.assertIn(b"\x1b[?1006l", output)
                 restored = termios.tcgetattr(slave)
