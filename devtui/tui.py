@@ -1,27 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
 import curses
-import re
 import time
-import unicodedata
 
-from .config import UserError, scripts
+from .config import HISTORY_LIMIT, UserError, scripts
 from .process import Jobs
-
-
-def clean(text):
-    text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", str(text))
-    return "".join(c for c in text if not unicodedata.category(c).startswith("C"))
-
-
-def fit(text, width):
-    result, cells = "", 0
-    for char in clean(text):
-        size = 0 if unicodedata.combining(char) else 2 if unicodedata.east_asian_width(char) in "WF" else 1
-        if cells + size > width:
-            break
-        result += char
-        cells += size
-    return result
+from .text import fit, text_width
+from .logview import LogView
 
 
 class UI:
@@ -48,9 +32,10 @@ class UI:
         self.next_poll = 0
         self.refresh = True
         self.log_target = None
+        self.log_view = None
         self.color = lambda _: 0
 
-    def snapshot(self, refresh, target):
+    def snapshot(self, refresh, target, log_limit=150):
         result = {}
         errors = []
         for name, call in (("servers", self.backend.servers),):
@@ -67,9 +52,10 @@ class UI:
             errors += repo_errors
         if target:
             try:
-                result["log"] = (target, self.backend.logs(target))
+                result["log"] = (target, self.backend.logs(target, limit=log_limit))
             except (UserError, ValueError) as exc:
                 result["log"] = (target, str(exc))
+            result["log_limit"] = log_limit
         result["errors"] = errors
         return result
 
@@ -85,7 +71,10 @@ class UI:
                 name, value = result["log"]
                 # An older snapshot may complete after the user requests a clear.
                 if not self.clear_future or self.clear_future[0] != name:
-                    self.logs[name] = value.splitlines()[-150:]
+                    self.logs[name] = value.splitlines()[-HISTORY_LIMIT:]
+                    if (self.log_view and self.log_view.source == ("server", name)
+                            and result.get("log_limit") == HISTORY_LIMIT):
+                        self.log_view.update(self.logs[name])
             if time.monotonic() >= self.notice_until:
                 self.message = self.errors[0] if self.errors else "Ready"
             self.follow_selected_server()
@@ -102,13 +91,17 @@ class UI:
             self.notice_until = time.monotonic() + 4
             self.next_poll = 0
         if not self.future and not self.clear_future and time.monotonic() >= self.next_poll:
-            self.future = self.pool.submit(self.snapshot, self.refresh, self.log_target)
+            limit = HISTORY_LIMIT if self.log_view else 150
+            self.future = self.pool.submit(self.snapshot, self.refresh, self.log_target, limit)
             self.refresh = False
             self.next_poll = time.monotonic() + 2
 
     def follow_selected_server(self):
-        row = self.selected() if self.tab == 0 else None
-        target = row[0] if row else None
+        if self.log_view:
+            target = self.log_view.source[1] if self.log_view.source[0] == "server" and self.log_view.follow else None
+        else:
+            row = self.selected() if self.tab == 0 else None
+            target = row[0] if row else None
         if target != self.log_target:
             self.log_target = target
             self.offset = 0
@@ -135,14 +128,23 @@ class UI:
         self.message = f"Started: {label} (Runsにログ表示)"
         self.offset = 0
 
-    def action(self, key):
+    def action(self, key, text=None):
+        if self.log_view:
+            result = self.log_view.key(key, text)
+            if result == "close":
+                self.log_view = None
+                self.offset = 0
+                self.next_poll = 0
+            elif result == "refresh":
+                self.next_poll = 0
+            return
         if self.editing and key != 27:
             if key in (10, 13):
                 self.editing = False
             elif key in (curses.KEY_BACKSPACE, 127, 8):
                 self.query = self.query[:-1]
-            elif 32 <= key <= 126:
-                self.query += chr(key)
+            elif (text is not None and text.isprintable()) or 32 <= key <= 126:
+                self.query += text if text is not None else chr(key)
             return
         row = self.selected()
         if key in (ord("1"), ord("2"), ord("3"), ord("4"), 9):
@@ -181,7 +183,15 @@ class UI:
             action = {ord("s"): "start", ord("x"): "stop", ord("r"): "restart"}[key]
             self.start(f"server:{action}:{row[0]}", self.backend.daemon_command(action, row[0]), 120)
             self.log_target = row[0]
-        elif row and self.tab == 0 and key in (ord("l"), 10, 13):
+        elif row and self.tab in (0, 3) and key in (ord("f"), 10, 13):
+            if self.tab == 0:
+                self.log_view = LogView(f"Logs / {row[0]}", ("server", row[0]), self.logs.get(row[0], ()), loaded=False)
+                self.log_target = row[0]
+            else:
+                job = row[2]
+                self.log_view = LogView(f"Output / {job.label}", ("job", job), job.output())
+            self.next_poll = 0
+        elif row and self.tab == 0 and key == ord("l"):
             self.log_target = row[0]
             self.next_poll = 0
         elif row and self.tab == 0 and key == ord("C"):
@@ -205,6 +215,13 @@ class UI:
             row[2].cancel()
 
     def draw(self, win):
+        if self.log_view:
+            if self.log_view.source[0] == "job":
+                job = self.log_view.source[1]
+                self.log_view.title = f"Output / {job.label} / {job.status}"
+                self.log_view.update(job.output())
+            self.log_view.draw(win, self.color)
+            return
         win.erase()
         height, width = win.getmaxyx()
         def put(y, x, text, attr=0, limit=None):
@@ -252,10 +269,10 @@ class UI:
             divider = width - 40
             for y in (1, 2, 3):
                 put(y, divider, "│", self.color(1) | curses.A_DIM)
-            hints = (("<s> start    <x> stop    <r> restart", "Logs: auto  <C> clear  <g> refresh", "<e> exit policy         <?> help"),
+            hints = (("<s> start    <x> stop    <r> restart", "<enter> logs  <C> clear  <g> refresh", "<e> exit policy         <?> help"),
                      ("<enter> execute task", "<g> refresh task catalog", "<e> exit policy         <?> help"),
                      ("<enter> execute script", "<g> reread package.json", "<e> exit policy         <?> help"),
-                     ("<c> cancel selected run", "<pgup/pgdn> scroll output", "<e> exit policy         <?> help"))[self.tab]
+                     ("<enter> full-screen output", "<c> cancel selected run", "<e> exit policy         <?> help"))[self.tab]
             for i, hint in enumerate(hints, 1):
                 put(i, divider + 2, hint, self.color(2), width - divider - 4)
 
@@ -319,7 +336,7 @@ class UI:
                     cell_style = state_style(state)
                 text = fit(cell, size - 1)
                 # Align by terminal cells, including wide characters in branch names.
-                cells_used = sum(0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+                cells_used = text_width(text)
                 right = self.tab == 0 and columns[column][0] == "BRANCH"
                 put(y, x + (size - 1 - cells_used if right else 0), text, cell_style, size - 1)
                 x += size
@@ -350,7 +367,7 @@ class UI:
         if self.help:
             detail_title = "KEYS / MVP"
             detail_badge = "<?> close"
-            detail = ["1-4 / Tab: switch view   j/k / arrows: select   /: filter   Esc: clear", "Servers: s start / x stop / r restart / C clear logs (auto follow)", "Tasks: Enter run   Runs: c cancel   PgUp/PgDn: scroll   g: refresh", "e: toggle exit KEEP/STOP   q/Ctrl-C: quit   ?: help", "KEEP: daemons continue. STOP: stop every daemon declared in this mise.toml.", "Running tasks are cancelled on either exit policy. DB/IT/Git: future phases."]
+            detail = ["1-4 / Tab: switch view   j/k / arrows: select   /: filter   Esc: clear", "Servers: s start / x stop / r restart / C clear logs (auto follow)", "Servers/Runs: Enter or f opens full-screen logs; Esc returns", "Tasks: Enter run   Runs: c cancel   PgUp/PgDn: scroll   g: refresh", "e: toggle exit KEEP/STOP   q/Ctrl-C: quit   ?: help", "Full-screen: / search, n/N next/prev, G tail, Space pause/resume"]
         detail_height = available - list_height
         box(split, detail_height, detail_title, detail_badge)
         space = detail_height - 2
@@ -362,8 +379,9 @@ class UI:
             put(height - 3, width - len(position) - 3, position, self.color(2))
         put(height - 2, 1, ("! " if self.errors else "● ") + self.message, self.color(2) if self.errors else self.color(3), width - 2)
         key_x = 1
-        log_shortcut = ("C", "clear logs" if width >= 90 else "clear") if self.tab == 0 else ("g", "refresh")
-        shortcuts = (("1-4", "views"), ("/", "filter"), log_shortcut, ("e", "exit policy" if width >= 90 else "exit"), ("?", "help"), ("q", "quit"))
+        view_shortcut = ("f", "logs") if self.tab in (0, 3) else ("g", "refresh")
+        action_shortcut = ("C", "clear") if self.tab == 0 else ("c", "cancel") if self.tab == 3 else ("e", "exit")
+        shortcuts = (("1-4", "views"), ("/", "filter"), view_shortcut, action_shortcut, ("?", "help"), ("q", "quit"))
         for key, label in shortcuts:
             put(height - 1, key_x, f"<{key}>", self.color(2) | curses.A_BOLD)
             key_x += len(key) + 2
@@ -385,6 +403,8 @@ class UI:
             curses.init_pair(4, curses.COLOR_RED, -1)
             curses.init_pair(5, curses.COLOR_MAGENTA, -1)
             curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_CYAN)
+            curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+            curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_MAGENTA)
             self.color = curses.color_pair
         win.timeout(100)
         if hasattr(curses, "set_escdelay"):
@@ -392,11 +412,15 @@ class UI:
         while True:
             self.poll()
             self.draw(win)
-            key = win.getch()
-            if key in (ord("q"), 3) and not self.editing:
+            try:
+                char = win.get_wch()
+            except curses.error:
+                char = -1
+            key = (ord(char) if ord(char) < 256 else -2) if isinstance(char, str) else char
+            if key in (ord("q"), 3) and not self.editing and not self.log_view:
                 return
             try:
-                self.action(key)
+                self.action(key, char if isinstance(char, str) else None)
             except UserError as exc:
                 self.message = str(exc)
 

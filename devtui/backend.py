@@ -3,7 +3,7 @@ import os
 import re
 import shutil
 
-from .config import UserError
+from .config import HISTORY_LIMIT, UserError
 from .process import capture
 from .git import current_branch
 
@@ -58,8 +58,10 @@ class Mise:
             raise UserError("mise tasks ls のJSON形式に対応していません")
         return [x for x in data if not x.get("hide") and not x["name"].startswith("-")]
 
-    def logs(self, name):
-        entries = json.loads(self.read("daemons", "logs", name, "-n", "150", "--json"))
+    def logs(self, name, limit=150):
+        if not isinstance(limit, int) or not 1 <= limit <= HISTORY_LIMIT:
+            raise UserError(f"ログ取得件数は1〜{HISTORY_LIMIT}を指定してください")
+        entries = json.loads(self.read("daemons", "logs", name, "-n", str(limit), "--json"))
         if not isinstance(entries, list) or any(
             not isinstance(entry, dict) or not isinstance(entry.get("timestamp"), str)
             or not isinstance(entry.get("message"), str) for entry in entries

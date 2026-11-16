@@ -4,6 +4,8 @@ from pathlib import Path
 import re
 import tomllib
 
+HISTORY_LIMIT = 5000
+
 
 class UserError(Exception):
     pass
