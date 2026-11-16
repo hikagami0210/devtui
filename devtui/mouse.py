@@ -25,6 +25,7 @@ class MouseInput:
     def __init__(self):
         self.enabled = False
         self.previous_mask = 0
+        self.last_report = ""
 
     def enable(self, enabled):
         if enabled == self.enabled:
@@ -52,7 +53,9 @@ class MouseInput:
             try:
                 _, _, _, _, state = curses.getmouse()
             except curses.error:
+                self.last_report = "curses.getmouse: no event"
                 return (0, 0)
+            self.last_report = f"curses bstate=0x{state:x} button5={hasattr(curses, 'BUTTON5_PRESSED')}"
             delta = -3 if state & curses.BUTTON4_PRESSED else 3 if state & getattr(curses, "BUTTON5_PRESSED", 0) else 0
             return (delta, 0) if state & curses.BUTTON_SHIFT else (0, delta)
         if char != "\x1b":
@@ -75,6 +78,7 @@ class MouseInput:
                 if index > 1 and value in ("M", "m"):
                     event = sgr_scroll("".join(pending))
                     if event is not None:
+                        self.last_report = "SGR ESC" + "".join(pending)
                         return event
                     break
                 if index > 1 and value not in "0123456789;":
