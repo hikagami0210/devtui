@@ -1,0 +1,9 @@
+{
+  "name": "devtui-demo-api",
+  "private": true,
+  "scripts": {
+    "dev": "node ../server.cjs api 4318",
+    "test": "node -e \"console.log('api test passed');\"",
+    "slow": "node -e \"setInterval(() => console.log('working...'), 500);\""
+  }
+}

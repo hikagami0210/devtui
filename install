@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+bin_dir=${1:-"$HOME/.local/bin"}
+mkdir -p -- "$bin_dir"
+destination="$bin_dir/devtui"
+if [ -e "$destination" ] || [ -L "$destination" ]; then
+    if [ -L "$destination" ] && [ "$(readlink -- "$destination")" = "$project_dir/run" ]; then
+        echo "Already installed: $destination"
+        exit 0
+    fi
+    echo "Refusing to overwrite existing command: $destination" >&2
+    exit 1
+fi
+ln -s -- "$project_dir/run" "$destination"
+echo "Installed: $destination"

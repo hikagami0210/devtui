@@ -1,0 +1,9 @@
+{
+  "name": "devtui-demo-web",
+  "private": true,
+  "scripts": {
+    "dev": "node ../server.cjs web 4317",
+    "test": "node -e \"console.log('web test passed');\"",
+    "fail": "node -e \"console.error('intentional failure'); process.exit(7);\""
+  }
+}

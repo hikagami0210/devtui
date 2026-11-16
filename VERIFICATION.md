@@ -1,0 +1,85 @@
+# 実機検証結果
+
+2026-11-16（日本時間）。Python 3.13.1 / mise 2026.11.8 / pitchfork 2.33.1 / Node 22.20.0 / macOS arm64。
+
+- PASS: two servers running
+- PASS: HTTP 4317
+- PASS: HTTP 4318
+- PASS: restart changes PID
+- PASS: server logs
+- PASS: mise task
+- PASS: six dynamically discovered scripts
+- PASS: npm test exit 0
+- PASS: npm fail exit 7
+- PASS: streaming task logs
+- PASS: npm cancellation
+- PASS: TUI renders
+- PASS: TUI task execution
+- PASS: TUI npm execution
+- PASS: TUI help
+- PASS: TUI server logs
+- PASS: KEEP exits successfully
+- PASS: KEEP leaves servers running
+- PASS: TUI stop key
+- PASS: TUI start key
+- PASS: TUI restart key
+- PASS: STOP exits successfully
+- PASS: TUI exit-policy toggle to STOP stops both servers
+
+ユニット・プロセステスト12件も成功。検証用サーバーとsupervisorは終了時に停止。
+
+デモrepoによる検証です。実業務repo、Yarn/pnpm/Bun、Linux、DB/IT/Gitは未検証です。
+
+## 枠線付きレイアウトの確認
+
+- 68×16、80×24、110×30、128×34、180×48の5サイズで、4画面すべての描画範囲とペイン左右の枠線を確認。
+- 実端末（128×34）でサーバー起動・停止・再起動、ログ表示、mise/npm実行、キー操作、KEEP/STOP終了を再確認。
+- preview.pngは実装と同じ描画処理から生成した、デモデータによる表示プレビュー。
+
+## ログの日時表示
+
+- pitchforkの保存済みログで、同じ起動メッセージが異なる時刻の別レコードであることを確認。
+- JSONログから日時を保持して表示し、過去の同一メッセージを区別する回帰テストを追加。全13件成功。
+- 実データでログを連続取得し、同一スナップショットの内容が変わらないことを確認。稼働中サーバーの起動・停止・ログ削除は行わず、前後のPIDも一致。
+
+## ログ削除・5台デモ
+
+- デモをweb/API/admin/auth/workerの5台に拡張。別の一時環境と空きポートで全5台の起動・HTTP応答・12スクリプトの検出を確認。
+- 実端末のShift+Cで、選択サーバーの保存済みログが削除されることを確認。全サーバーのPIDと他サーバーのログは保持。
+- 削除後のHTTPリクエストが新しいログとして表示され、以前の起動ログが復活しないことを確認。
+- 停止済みサーバーでもログを削除でき、停止状態を維持することを確認。
+- 古い取得結果の再表示防止・対象制限・削除失敗時の表示を含め、全16件のテスト成功。
+- 検証用サーバーとsupervisorは停止済み。元のデモ環境のPIDは検証前後で一致。
+
+## ブランチ・一括起動・Esc
+
+- ServersにBRANCH列を追加。通常ブランチ、外部での切り替え、初回コミット前、detached HEAD、Git外ディレクトリ、複数daemonと1repoの対応を検証。全22件のテスト成功。
+- 一時環境の5repoを異なるブランチで初期化し、各サーバーに対応する実際のブランチ名が表示されることを確認。
+- `servers:start` miseタスクから5台を一括起動し、HTTP応答を確認。
+- 実端末で`/`から入力後にEscを押し、絞り込みが解除され、通常のサーバー操作に戻ることを確認。
+- `Server overview`見出しとBRANCH列を実端末で確認。5サイズで4画面の枠線・描画範囲も再確認。
+- 既存デモのPIDは検証前後で一致。一時環境のサーバーとsupervisorは停止・破棄。
+
+## 一覧の整理・ログ自動追従
+
+- PID列とServer overviewの見出しを削除し、BRANCH列を右端に配置。見出しとブランチ名を右寄せで表示。
+- 68×16〜180×48の5サイズ・4画面で枠線と描画範囲を確認。128×34のプレビューを目視確認。
+- 初回のサーバー一覧取得後に自動でログを読み、選択が変わると追従先を変更。他画面では新しいログ取得を止める回帰テストを追加。全24件成功。
+- 別環境の実端末で、lキーを押さず初期ログが表示され、web→api→webと選択を往復すると各HTTPリクエストのログへ追従することを確認。
+- 一括起動、Esc、ログ削除、削除後の新しい出力も再確認。既存デモのPIDは保持し、検証用サーバーは停止・破棄。
+
+## devtuiコマンド登録
+
+- ~/.local/bin/devtuiからソースのランチャーへリンクを登録。既存ファイルを上書きしない登録処理を確認。
+- ディレクトリ・mise.toml・~の指定、空白を含むパス、シンボリックリンク越しの実行、起動元ディレクトリの維持、デモへの委譲を追加検証。全30件のテスト成功。
+- 登録したコマンドを/tmpから呼び出し、--help、対象ディレクトリの--inspect、--demo --inspect、ホームに設定がない場合の案内を確認。
+- devtui --demoで実端末にTUIを表示し、qで正常終了。既存サーバーのPIDは起動前後で一致。
+
+## GitHubへ公開するソースの確認
+
+- Git登録対象の26ファイルだけを別ディレクトリへ展開。ワークスペースのwork配下、依存バイナリ、実行ログ、DBデータ、このPC専用のデモ設定は含めない。
+- 画面画像の個人パスを匿名化。テキスト内の個人パスと私用メールアドレスも検査し、公開対象には見つからず。
+- gitleaks 8.30.1の公式配布物をSHA-256検証後に使用。公開対象へのスキャンでシークレット未検出。画像は別途目視確認。
+- 登録対象だけを移動した状態で31件のテスト成功。ローカル設定なしのデモ起動、mise連携、コマンド登録、実端末での表示・終了を確認。
+- 外部ツールの実行ファイルやフォントは同梱せず、ライセンス参照先をTHIRD_PARTY_NOTICES.mdへ整理。アプリ本体のライセンスは所有者の希望により未指定。
+- 検証環境はmacOS arm64。別PCの実機、Linux、異なるCPUでの動作は未検証。必要な実行環境とclone/pull手順はSETUP.mdに記載。

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Portable demo. Optional machine-local overrides are never committed.
+set -eu
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -f "$project_dir/.devtui-demo.local.sh" ]; then
+    . "$project_dir/.devtui-demo.local.sh"
+fi
+mise_bin=${DEVTUI_MISE:-mise}
+if ! command -v "$mise_bin" >/dev/null 2>&1; then
+    echo 'mise >= 2026.11.8 is required. See SETUP.md.' >&2
+    exit 1
+fi
+export MISE_EXPERIMENTAL=1
+unset MISE_ENV MISE_DEFAULT_CONFIG_FILENAME MISE_OVERRIDE_CONFIG_FILENAMES
+exec "$project_dir/run" --config "$project_dir/mise.toml" --mise "$mise_bin" "$@"

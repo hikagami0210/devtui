@@ -1,0 +1,81 @@
+min_version = "2026.11.8"
+
+[settings]
+experimental = true
+
+[tools]
+node = "22.20.0"
+pitchfork = "2.33.1"
+
+[_.devtui]
+exit_policy = "keep"
+
+[_.devtui.repos.web]
+path = "examples/web"
+
+[_.devtui.repos.api]
+path = "examples/api"
+
+[_.devtui.repos.admin]
+path = "examples/admin"
+
+[_.devtui.repos.auth]
+path = "examples/auth"
+
+[_.devtui.repos.worker]
+path = "examples/worker"
+
+[daemons_settings]
+namespace = "devtui-demo"
+
+[daemons.web]
+dir = "examples/web"
+run = "exec npm run dev"
+ready_port = 4317
+port = 4317
+proxy = false
+
+[daemons.api]
+dir = "examples/api"
+run = "exec npm run dev"
+ready_port = 4318
+port = 4318
+proxy = false
+
+[daemons.admin]
+dir = "examples/admin"
+run = "exec npm run dev"
+ready_port = 4319
+port = 4319
+proxy = false
+
+[daemons.auth]
+dir = "examples/auth"
+run = "exec npm run dev"
+ready_port = 4320
+port = 4320
+proxy = false
+
+[daemons.worker]
+dir = "examples/worker"
+run = "exec npm run dev"
+ready_port = 4321
+port = 4321
+proxy = false
+
+[tasks.hello]
+description = "Check mise task execution"
+run = "echo 'Hello from the shared mise.toml'"
+
+[tasks."servers:start"]
+description = "Start all five demo servers"
+run = "mise daemons start --all"
+
+[tasks.check]
+description = "Run devtui unit and process tests"
+run = "./run-tests"
+
+[tasks.tui]
+description = "Open the development environment TUI"
+run = "./run"
+raw = true

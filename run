@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+launcher_path=$0
+while [ -L "$launcher_path" ]; do
+    link_target=$(readlink -- "$launcher_path")
+    case "$link_target" in
+        /*) launcher_path=$link_target ;;
+        *) launcher_path=$(dirname -- "$launcher_path")/$link_target ;;
+    esac
+done
+project_dir=$(CDPATH= cd -- "$(dirname -- "$launcher_path")" && pwd)
+if [ -n "${DEVTUI_PYTHON:-}" ]; then
+    exec "$DEVTUI_PYTHON" "$project_dir/launch.py" "$@"
+fi
+for candidate in python3.14 python3.13 python3.12 python3.11 python3; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then
+        exec "$candidate" "$project_dir/launch.py" "$@"
+    fi
+done
+echo 'devtui requires Python >= 3.11. Set DEVTUI_PYTHON to its executable path.' >&2
+exit 1

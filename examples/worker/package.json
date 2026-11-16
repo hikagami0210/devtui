@@ -1,0 +1,8 @@
+{
+  "name": "devtui-demo-worker",
+  "private": true,
+  "scripts": {
+    "dev": "node ../server.cjs worker 4321",
+    "test": "node -e \"console.log('worker test passed');\""
+  }
+}

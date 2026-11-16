@@ -1,0 +1,8 @@
+{
+  "name": "devtui-demo-admin",
+  "private": true,
+  "scripts": {
+    "dev": "node ../server.cjs admin 4319",
+    "test": "node -e \"console.log('admin test passed');\""
+  }
+}

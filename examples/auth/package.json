@@ -1,0 +1,8 @@
+{
+  "name": "devtui-demo-auth",
+  "private": true,
+  "scripts": {
+    "dev": "node ../server.cjs auth 4320",
+    "test": "node -e \"console.log('auth test passed');\""
+  }
+}
