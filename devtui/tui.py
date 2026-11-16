@@ -417,10 +417,9 @@ class UI:
                 self.draw(win)
                 mouse.enable(self.log_view is not None)
                 try:
-                    char = win.get_wch()
+                    char, event = mouse.get_input(win)
                 except curses.error:
-                    char = -1
-                event = mouse.read(win, char)
+                    char, event = -1, None
                 if event is not None:
                     if self.log_view:
                         self.log_view.wheel(*event)

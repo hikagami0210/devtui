@@ -130,10 +130,9 @@ def diagnostic_curses():
                 except curses.error:
                     pass
                 try:
-                    char = win.get_wch()
+                    char, event = mouse.get_input(win)
                 except curses.error:
                     continue
-                event = mouse.read(win, char)
                 if event is not None:
                     dx, dy = event
                     direction = "UP" if dy < 0 else "DOWN" if dy > 0 else "LEFT" if dx < 0 else "RIGHT" if dx > 0 else "OTHER"

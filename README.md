@@ -219,4 +219,6 @@ devtui --mouse-test curses
 
 iTerm2では[Profiles → Terminal](https://iterm2.com/documentation-preferences-profiles-terminal.html)の`Enable mouse reporting`と`Report mouse wheel events`を確認できます。Optionキーを押している間はマウス報告が一時的に無効になるため、診断中は離してください。
 
+macOSの古いncursesとSGRマウスを指定する端末定義の組み合わせでは、curses内で下方向等の入力が失われる場合があります。devtuiではSGRをcursesのマウス変換より先に読み取り、`BUTTON5_PRESSED`のない環境でも上下左右を処理します。ナビゲーションキーは端末定義と標準の矢印・Home/End・PageUp/PageDownの配列を使って読み取ります。
+
 公式仕様: [mise daemons](https://mise.jdx.dev/daemons.html)、[miseの自由データ領域](https://mise.jdx.dev/configuration/reference.html#_)、[pitchforkのmise連携](https://pitchfork.jdx.dev/guides/mise-integration.html)。daemon連携は実験的機能のため、互換性を検証したバージョンを明示しています。

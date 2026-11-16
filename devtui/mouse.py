@@ -20,12 +20,13 @@ def sgr_scroll(sequence):
 
 
 class MouseInput:
-    """Use native mouse events, with SGR fallback for older macOS curses."""
+    """Read SGR before curses can discard unsupported wheel events."""
 
     def __init__(self):
         self.enabled = False
         self.previous_mask = 0
         self.last_report = ""
+        self.keys = None
 
     def enable(self, enabled):
         if enabled == self.enabled:
@@ -47,6 +48,53 @@ class MouseInput:
             sys.stdout.write("\x1b[?1000l\x1b[?1006l")
         sys.stdout.flush()
         self.enabled = enabled
+
+    def get_input(self, win, timeout=100):
+        """Return (key, wheel), reading SGR before native mouse decoding.
+
+        Modern terminfo can declare ESC[< as kmous even when Python links to
+        old curses without working SGR/BUTTON5 support. Inspect that prefix
+        with keypad disabled; calling getmouse afterward is already too late.
+        """
+        if self.keys is None:
+            self.keys = navigation_keys()
+        pending = []
+        win.keypad(False)
+        try:
+            char = win.get_wch()
+            if char != "\x1b":
+                return char, self.read(win, char, timeout)
+            win.timeout(20)
+            for _ in range(48):
+                try:
+                    value = win.get_wch()
+                except curses.error:
+                    break
+                pending.append(value)
+                if not isinstance(value, str):
+                    break
+                sequence = "".join(pending)
+                if sequence == "[<":
+                    for value in reversed(pending):
+                        self.put_back(value)
+                    return char, self.read(win, char, timeout)
+                if sequence in self.keys:
+                    return self.keys[sequence], None
+                if not any(key.startswith(sequence) for key in (*self.keys, "[<")):
+                    break
+            for value in reversed(pending):
+                self.put_back(value)
+            return char, None
+        finally:
+            win.timeout(timeout)
+            win.keypad(True)
+
+    @staticmethod
+    def put_back(value):
+        if isinstance(value, str):
+            curses.unget_wch(value)
+        else:
+            curses.ungetch(value)
 
     def read(self, win, char, timeout=100):
         if char == curses.KEY_MOUSE:
@@ -86,8 +134,25 @@ class MouseInput:
         finally:
             win.timeout(timeout)
         for value in reversed(pending):
-            if isinstance(value, str):
-                curses.unget_wch(value)
-            else:
-                curses.ungetch(value)
+            self.put_back(value)
         return None
+
+
+def navigation_keys():
+    """Decode the keys used by the UI in both normal and application mode."""
+    keys = {}
+    for suffix, key in (("A", curses.KEY_UP), ("B", curses.KEY_DOWN),
+                        ("C", curses.KEY_RIGHT), ("D", curses.KEY_LEFT),
+                        ("H", curses.KEY_HOME), ("F", curses.KEY_END)):
+        keys["[" + suffix] = keys["O" + suffix] = key
+    keys.update({"[5~": curses.KEY_PPAGE, "[6~": curses.KEY_NPAGE,
+                 "[1~": curses.KEY_HOME, "[7~": curses.KEY_HOME,
+                 "[4~": curses.KEY_END, "[8~": curses.KEY_END})
+    for capability, key in (("kcuu1", curses.KEY_UP), ("kcud1", curses.KEY_DOWN),
+                            ("kcuf1", curses.KEY_RIGHT), ("kcub1", curses.KEY_LEFT),
+                            ("khome", curses.KEY_HOME), ("kend", curses.KEY_END),
+                            ("kpp", curses.KEY_PPAGE), ("knp", curses.KEY_NPAGE)):
+        value = curses.tigetstr(capability)
+        if value and value.startswith(b"\x1b"):
+            keys[value[1:].decode("latin-1")] = key
+    return keys
